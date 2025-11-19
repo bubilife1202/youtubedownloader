@@ -6,7 +6,7 @@
 
 - **Frontend**: HTML, CSS, JavaScript
 - **Backend**: Netlify Functions (Node.js)
-- **라이브러리**: @distube/ytdl-core
+- **라이브러리**: youtube-dl-exec (yt-dlp 기반)
 
 ## 주요 기능
 
@@ -39,47 +39,20 @@
 - `youtubedownloader.netlify.app` 같은 일반적인 이름은 이미 사용 중일 수 있습니다
 - 더 유니크한 이름을 선택하세요 (예: `yt-dl-yourname.netlify.app`)
 
-### YouTube 접근 제한 해결 (선택사항)
-
-YouTube의 봇 차단으로 인해 일부 비디오에서 403 Forbidden 에러가 발생할 수 있습니다. 이를 해결하려면 Netlify 환경 변수를 설정하세요:
-
-#### 1. YouTube 쿠키 설정
-
-1. Chrome에서 YouTube에 로그인
-2. 개발자 도구 (F12) → Application → Cookies → https://www.youtube.com
-3. 모든 쿠키를 복사 (특히 중요한 것: `__Secure-1PSID`, `__Secure-1PAPISID`, `__Secure-1PSIDTS`)
-4. Netlify Dashboard → Site settings → Environment variables
-5. 새 변수 추가:
-   - **Key**: `YOUTUBE_COOKIES`
-   - **Value**: `cookie1=value1; cookie2=value2; ...` (세미콜론으로 구분)
-
-#### 2. PO Token 설정 (선택사항, 더 강력한 보안)
-
-1. Chrome 확장 프로그램이나 스크립트로 `po_token`과 `visitor_data` 추출
-2. Netlify 환경 변수 추가:
-   - **Key**: `YOUTUBE_PO_TOKEN`
-   - **Value**: 추출한 po_token 값
-   - **Key**: `YOUTUBE_VISITOR_DATA`
-   - **Value**: 추출한 visitor_data 값
-
-**참고:**
-- 쿠키는 주기적으로 만료되므로 정기적으로 업데이트해야 합니다
-- 환경 변수 없이도 일부 비디오는 작동할 수 있습니다
-- 쿠키 설정 후 사이트 재배포가 필요합니다
-
 ### 로컬 개발
 
 ```bash
 # 의존성 설치
 npm install
 
-# 환경 변수 설정 (선택사항)
-# .env 파일 생성
-echo 'YOUTUBE_COOKIES="your_cookies_here"' > .env
-
 # 로컬 개발 서버 실행 (Netlify Dev)
 npm run dev
 ```
+
+**참고:**
+- 이 프로젝트는 `youtube-dl-exec` (yt-dlp)를 사용하여 YouTube 봇 차단을 자동으로 우회합니다
+- 별도의 쿠키나 인증 설정이 필요 없습니다
+- yt-dlp는 지속적으로 업데이트되어 YouTube 변경사항에 대응합니다
 
 ## 프로젝트 구조
 
