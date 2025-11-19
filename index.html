@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YouTube Video Downloader</title>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8245597797545485" crossorigin="anonymous"></script>
     <style>
         * {
             margin: 0;
@@ -260,6 +261,24 @@
             background: #5568d3;
         }
 
+        .ad-container {
+            margin: 20px 0;
+            text-align: center;
+            min-height: 90px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ad-container.top {
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        .ad-container.middle {
+            margin: 30px 0;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 20px;
@@ -304,6 +323,16 @@
             <button id="getVideoBtn" onclick="getVideoInfo()">가져오기</button>
         </div>
 
+        <!-- 광고 영역 (상단) -->
+        <div class="ad-container top">
+            <ins class="adsbygoogle"
+                 style="display:block"
+                 data-ad-client="ca-pub-8245597797545485"
+                 data-ad-slot="1234567890"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+        </div>
+
         <div class="error" id="errorMessage"></div>
 
         <div class="loading" id="loading">
@@ -324,12 +353,28 @@
                 </div>
             </div>
 
+            <!-- 광고 영역 (중간) -->
+            <div class="ad-container middle">
+                <ins class="adsbygoogle"
+                     style="display:block"
+                     data-ad-client="ca-pub-8245597797545485"
+                     data-ad-slot="9876543210"
+                     data-ad-format="auto"
+                     data-full-width-responsive="true"></ins>
+            </div>
+
             <div class="formats-section">
                 <div class="section-title">다운로드 옵션</div>
                 <div id="formatsList"></div>
             </div>
         </div>
     </div>
+
+    <script>
+        // AdSense 광고 초기화
+        (adsbygoogle = window.adsbygoogle || []).push({});
+        (adsbygoogle = window.adsbygoogle || []).push({});
+    </script>
 
     <script>
         // Enter 키로 검색

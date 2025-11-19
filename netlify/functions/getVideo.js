@@ -20,6 +20,27 @@ const agent = ytdl.createAgent(undefined, {
   localAddress: undefined
 });
 
+// YouTube 쿠키 파싱 (환경 변수에서 읽기)
+function parseCookies(cookieString) {
+  if (!cookieString) return [];
+
+  try {
+    // JSON 형식인 경우
+    if (cookieString.trim().startsWith('[')) {
+      return JSON.parse(cookieString);
+    }
+
+    // 문자열 형식인 경우 (key=value; key2=value2)
+    return cookieString.split(';').map(cookie => {
+      const [name, ...valueParts] = cookie.trim().split('=');
+      return { name, value: valueParts.join('=') };
+    }).filter(c => c.name && c.value);
+  } catch (error) {
+    console.error('Failed to parse cookies:', error);
+    return [];
+  }
+}
+
 exports.handler = async (event, context) => {
   // CORS 헤더 설정
   const headers = {
@@ -68,8 +89,20 @@ exports.handler = async (event, context) => {
 
     console.log('Fetching video info for:', videoUrl);
 
-    // 비디오 정보 가져오기 (강화된 옵션)
-    const info = await ytdl.getInfo(videoUrl, {
+    // 환경 변수에서 YouTube 인증 정보 읽기
+    const youtubeCookies = parseCookies(process.env.YOUTUBE_COOKIES || '');
+    const poToken = process.env.YOUTUBE_PO_TOKEN || '';
+    const visitorData = process.env.YOUTUBE_VISITOR_DATA || '';
+
+    if (youtubeCookies.length > 0) {
+      console.log('Using YouTube cookies for authentication');
+    }
+    if (poToken) {
+      console.log('Using po_token for authentication');
+    }
+
+    // ytdl-core 옵션 구성
+    const ytdlOptions = {
       agent: agent,
       requestOptions: {
         headers: {
@@ -78,15 +111,32 @@ exports.handler = async (event, context) => {
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Sec-Fetch-Mode': 'navigate',
           'Sec-Fetch-Site': 'none',
-          'Sec-Fetch-Dest': 'document'
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+          'Sec-Ch-Ua-Mobile': '?0',
+          'Sec-Ch-Ua-Platform': '"Windows"'
         }
       },
-      // OAuth를 사용하지 않고 우회
       lang: 'en',
-      // 추가 옵션
       includeRelatedVideo: false,
       includePlayerResponse: true
-    });
+    };
+
+    // 쿠키가 있으면 추가
+    if (youtubeCookies.length > 0) {
+      ytdlOptions.requestOptions.headers.Cookie = youtubeCookies
+        .map(c => `${c.name}=${c.value}`)
+        .join('; ');
+    }
+
+    // po_token과 visitorData가 있으면 추가
+    if (poToken && visitorData) {
+      ytdlOptions.poToken = poToken;
+      ytdlOptions.visitorData = visitorData;
+    }
+
+    // 비디오 정보 가져오기
+    const info = await ytdl.getInfo(videoUrl, ytdlOptions);
 
     console.log('Video info fetched successfully');
     console.log('Video title:', info.videoDetails.title);
