@@ -1,5 +1,19 @@
 const ytdl = require('@distube/ytdl-core');
 
+// YouTube Shorts URL을 일반 URL로 변환
+function normalizeYouTubeUrl(url) {
+  try {
+    // Shorts URL 패턴: /shorts/VIDEO_ID
+    const shortsMatch = url.match(/\/shorts\/([a-zA-Z0-9_-]+)/);
+    if (shortsMatch) {
+      return `https://www.youtube.com/watch?v=${shortsMatch[1]}`;
+    }
+    return url;
+  } catch (error) {
+    return url;
+  }
+}
+
 exports.handler = async (event, context) => {
   // CORS 헤더 설정
   const headers = {
@@ -20,7 +34,7 @@ exports.handler = async (event, context) => {
 
   try {
     // URL 파라미터에서 유튜브 URL 가져오기
-    const videoUrl = event.queryStringParameters?.url;
+    let videoUrl = event.queryStringParameters?.url;
 
     if (!videoUrl) {
       return {
@@ -30,17 +44,36 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // YouTube Shorts URL을 일반 URL로 변환
+    videoUrl = normalizeYouTubeUrl(videoUrl);
+    console.log('Normalized URL:', videoUrl);
+
     // 유튜브 URL 유효성 검사
     if (!ytdl.validateURL(videoUrl)) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: '유효하지 않은 유튜브 URL입니다.' })
+        body: JSON.stringify({
+          error: '유효하지 않은 유튜브 URL입니다.',
+          providedUrl: videoUrl
+        })
       };
     }
 
-    // 비디오 정보 가져오기
-    const info = await ytdl.getInfo(videoUrl);
+    console.log('Fetching video info for:', videoUrl);
+
+    // 비디오 정보 가져오기 (옵션 추가)
+    const info = await ytdl.getInfo(videoUrl, {
+      requestOptions: {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      }
+    });
+
+    console.log('Video info fetched successfully');
+    console.log('Video title:', info.videoDetails.title);
+    console.log('Total formats available:', info.formats?.length || 0);
 
     // 비디오 제목
     const title = info.videoDetails.title;
@@ -75,8 +108,24 @@ exports.handler = async (event, context) => {
         return (b.bitrate || 0) - (a.bitrate || 0);
       });
 
+    console.log('Filtered formats count:', formats.length);
+
+    if (formats.length === 0) {
+      console.warn('No downloadable formats found');
+      return {
+        statusCode: 404,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          error: '다운로드 가능한 포맷을 찾을 수 없습니다.',
+          details: '이 비디오는 현재 다운로드할 수 없습니다.'
+        })
+      };
+    }
+
     // 추천 포맷 (비디오+오디오가 함께 있는 최고 화질)
     const recommendedFormat = formats.find(f => f.hasVideo && f.hasAudio);
+    console.log('Recommended format:', recommendedFormat ? `${recommendedFormat.quality} (${recommendedFormat.container})` : 'none');
 
     return {
       statusCode: 200,
@@ -94,14 +143,41 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+
+    // 더 구체적인 에러 메시지 제공
+    let errorMessage = '비디오 정보를 가져오는 중 오류가 발생했습니다.';
+    let statusCode = 500;
+
+    if (error.message.includes('Video unavailable')) {
+      errorMessage = '이 비디오는 현재 사용할 수 없습니다. (비공개 또는 삭제됨)';
+      statusCode = 404;
+    } else if (error.message.includes('age-restricted')) {
+      errorMessage = '연령 제한이 있는 비디오는 다운로드할 수 없습니다.';
+      statusCode = 403;
+    } else if (error.message.includes('private')) {
+      errorMessage = '비공개 비디오는 다운로드할 수 없습니다.';
+      statusCode = 403;
+    } else if (error.message.includes('copyright')) {
+      errorMessage = '저작권 문제로 이 비디오를 처리할 수 없습니다.';
+      statusCode = 403;
+    } else if (error.message.includes('Sign in')) {
+      errorMessage = '이 비디오는 로그인이 필요합니다. 공개 비디오만 다운로드 가능합니다.';
+      statusCode = 403;
+    }
 
     return {
-      statusCode: 500,
+      statusCode,
       headers,
       body: JSON.stringify({
-        error: '비디오 정보를 가져오는 중 오류가 발생했습니다.',
-        details: error.message
+        success: false,
+        error: errorMessage,
+        details: error.message,
+        timestamp: new Date().toISOString()
       })
     };
   }
