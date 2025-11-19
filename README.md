@@ -20,12 +20,24 @@
 
 ### Netlify에 배포하기
 
-1. GitHub에 저장소 푸시
-2. [Netlify](https://netlify.com)에 로그인
-3. "New site from Git" 선택
-4. GitHub 저장소 연결
-5. 빌드 설정은 자동으로 감지됩니다 (netlify.toml 사용)
-6. "Deploy site" 클릭
+1. [Netlify](https://app.netlify.com)에 로그인
+2. "Add new site" → "Import an existing project" 선택
+3. "Deploy with GitHub" 선택 후 저장소 연결
+4. 저장소 선택: `youtubedownloader`
+5. 브랜치 선택: `claude/youtube-downloader-site-014cCazTBzXbuCUyXFjs6qvs` (또는 원하는 브랜치)
+6. 빌드 설정 확인:
+   - Build command: (비워두기 - netlify.toml에서 자동 감지)
+   - Publish directory: `.` (netlify.toml에서 자동 감지)
+7. "Deploy" 클릭
+
+**배포 후:**
+- Netlify가 자동으로 랜덤 URL을 생성합니다 (예: `random-name-123.netlify.app`)
+- Site settings → Domain management에서 사이트 이름을 원하는 대로 변경할 수 있습니다
+- 예: `your-custom-name.netlify.app` (사용 가능한 경우)
+
+**참고:**
+- `youtubedownloader.netlify.app` 같은 일반적인 이름은 이미 사용 중일 수 있습니다
+- 더 유니크한 이름을 선택하세요 (예: `yt-dl-yourname.netlify.app`)
 
 ### 로컬 개발
 

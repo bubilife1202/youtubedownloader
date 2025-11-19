@@ -1,5 +1,5 @@
 {
-  "name": "youtube-downloader",
+  "name": "yt-video-downloader-app",
   "version": "1.0.0",
   "description": "YouTube video downloader using Netlify Functions",
   "main": "index.js",
