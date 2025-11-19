@@ -1,4 +1,5 @@
 const ytdl = require('@distube/ytdl-core');
+const { Agent } = require('undici');
 
 // YouTube Shorts URL을 일반 URL로 변환
 function normalizeYouTubeUrl(url) {
@@ -13,6 +14,11 @@ function normalizeYouTubeUrl(url) {
     return url;
   }
 }
+
+// ytdl-core 에이전트 생성 (IPv6 차단 우회)
+const agent = ytdl.createAgent(undefined, {
+  localAddress: undefined
+});
 
 exports.handler = async (event, context) => {
   // CORS 헤더 설정
@@ -62,13 +68,24 @@ exports.handler = async (event, context) => {
 
     console.log('Fetching video info for:', videoUrl);
 
-    // 비디오 정보 가져오기 (옵션 추가)
+    // 비디오 정보 가져오기 (강화된 옵션)
     const info = await ytdl.getInfo(videoUrl, {
+      agent: agent,
       requestOptions: {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-Dest': 'document'
         }
-      }
+      },
+      // OAuth를 사용하지 않고 우회
+      lang: 'en',
+      // 추가 옵션
+      includeRelatedVideo: false,
+      includePlayerResponse: true
     });
 
     console.log('Video info fetched successfully');
@@ -153,20 +170,28 @@ exports.handler = async (event, context) => {
     let errorMessage = '비디오 정보를 가져오는 중 오류가 발생했습니다.';
     let statusCode = 500;
 
-    if (error.message.includes('Video unavailable')) {
+    const errMsg = error.message.toLowerCase();
+
+    if (errMsg.includes('video unavailable') || errMsg.includes('not found')) {
       errorMessage = '이 비디오는 현재 사용할 수 없습니다. (비공개 또는 삭제됨)';
       statusCode = 404;
-    } else if (error.message.includes('age-restricted')) {
+    } else if (errMsg.includes('age') || errMsg.includes('restricted')) {
       errorMessage = '연령 제한이 있는 비디오는 다운로드할 수 없습니다.';
       statusCode = 403;
-    } else if (error.message.includes('private')) {
+    } else if (errMsg.includes('private')) {
       errorMessage = '비공개 비디오는 다운로드할 수 없습니다.';
       statusCode = 403;
-    } else if (error.message.includes('copyright')) {
+    } else if (errMsg.includes('copyright')) {
       errorMessage = '저작권 문제로 이 비디오를 처리할 수 없습니다.';
       statusCode = 403;
-    } else if (error.message.includes('Sign in')) {
-      errorMessage = '이 비디오는 로그인이 필요합니다. 공개 비디오만 다운로드 가능합니다.';
+    } else if (errMsg.includes('sign in') || errMsg.includes('login') || errMsg.includes('confirm your age')) {
+      errorMessage = 'YouTube 접근 제한이 있습니다. 다른 비디오를 시도해주세요.';
+      statusCode = 403;
+    } else if (errMsg.includes('status code 429') || errMsg.includes('too many requests')) {
+      errorMessage = '너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해주세요.';
+      statusCode = 429;
+    } else if (errMsg.includes('status code 403') || errMsg.includes('forbidden')) {
+      errorMessage = 'YouTube에서 접근을 차단했습니다. 잠시 후 다시 시도해주세요.';
       statusCode = 403;
     }
 

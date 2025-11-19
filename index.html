@@ -125,6 +125,8 @@
             padding: 15px;
             border-radius: 10px;
             margin-bottom: 20px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
 
         .error.show {
@@ -363,7 +365,19 @@
                 const data = await response.json();
 
                 if (!response.ok || !data.success) {
-                    throw new Error(data.error || data.details || '비디오 정보를 가져올 수 없습니다.');
+                    // 서버에서 반환한 에러 메시지 표시
+                    let errorMsg = data.error || '비디오 정보를 가져올 수 없습니다.';
+
+                    // 디버깅을 위해 details도 추가 (다른 경우)
+                    if (data.details && data.details !== data.error) {
+                        console.error('Error details:', data.details);
+                        // 기술적인 세부사항은 너무 길 수 있으므로 첫 200자만
+                        if (data.details.length < 200) {
+                            errorMsg += `\n\n상세 정보: ${data.details}`;
+                        }
+                    }
+
+                    throw new Error(errorMsg);
                 }
 
                 displayVideoInfo(data);

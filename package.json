@@ -15,7 +15,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@distube/ytdl-core": "^4.14.4"
+    "@distube/ytdl-core": "^4.14.4",
+    "undici": "^6.0.0"
   },
   "devDependencies": {
     "netlify-cli": "^17.0.0"
