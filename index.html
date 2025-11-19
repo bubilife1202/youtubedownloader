@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Downloader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2rem;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+            color: #667eea;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            display: none;
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .video-info {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .video-info.show {
+            display: block;
+        }
+
+        .video-header {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .thumbnail {
+            width: 200px;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .video-details {
+            flex: 1;
+        }
+
+        .video-title {
+            font-size: 1.3rem;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .video-meta {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .formats-section {
+            margin-top: 20px;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .format-item {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: border-color 0.3s, background 0.3s;
+        }
+
+        .format-item:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+        }
+
+        .format-item.recommended {
+            border-color: #28a745;
+            background: #f1f9f4;
+        }
+
+        .format-info {
+            flex: 1;
+        }
+
+        .format-quality {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .format-details {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+
+        .badge.recommended {
+            background: #28a745;
+            color: white;
+        }
+
+        .badge.video {
+            background: #667eea;
+            color: white;
+        }
+
+        .badge.audio {
+            background: #764ba2;
+            color: white;
+        }
+
+        .download-btn {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .download-btn:hover {
+            background: #5568d3;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            .input-group {
+                flex-direction: column;
+            }
+
+            .video-header {
+                flex-direction: column;
+            }
+
+            .thumbnail {
+                width: 100%;
+            }
+
+            .format-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📺 YouTube Downloader</h1>
+        <p class="subtitle">유튜브 동영상 URL을 입력하여 다운로드 링크를 받으세요</p>
+
+        <div class="input-group">
+            <input
+                type="text"
+                id="videoUrl"
+                placeholder="https://www.youtube.com/watch?v=..."
+                autocomplete="off"
+            >
+            <button id="getVideoBtn" onclick="getVideoInfo()">가져오기</button>
+        </div>
+
+        <div class="error" id="errorMessage"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>비디오 정보를 가져오는 중...</p>
+        </div>
+
+        <div class="video-info" id="videoInfo">
+            <div class="video-header">
+                <img id="thumbnail" class="thumbnail" src="" alt="Video thumbnail">
+                <div class="video-details">
+                    <div class="video-title" id="videoTitle"></div>
+                    <div class="video-meta">
+                        <div id="videoAuthor"></div>
+                        <div id="videoLength"></div>
+                        <div id="videoViews"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="formats-section">
+                <div class="section-title">다운로드 옵션</div>
+                <div id="formatsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enter 키로 검색
+        document.getElementById('videoUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                getVideoInfo();
+            }
+        });
+
+        async function getVideoInfo() {
+            const videoUrl = document.getElementById('videoUrl').value.trim();
+            const loading = document.getElementById('loading');
+            const errorMessage = document.getElementById('errorMessage');
+            const videoInfo = document.getElementById('videoInfo');
+            const getVideoBtn = document.getElementById('getVideoBtn');
+
+            // 초기화
+            errorMessage.classList.remove('show');
+            videoInfo.classList.remove('show');
+            errorMessage.textContent = '';
+
+            if (!videoUrl) {
+                showError('유튜브 URL을 입력해주세요.');
+                return;
+            }
+
+            // 로딩 시작
+            loading.classList.add('show');
+            getVideoBtn.disabled = true;
+
+            try {
+                const response = await fetch(`/api/getVideo?url=${encodeURIComponent(videoUrl)}`);
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || data.details || '비디오 정보를 가져올 수 없습니다.');
+                }
+
+                displayVideoInfo(data);
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                loading.classList.remove('show');
+                getVideoBtn.disabled = false;
+            }
+        }
+
+        function displayVideoInfo(data) {
+            const videoInfo = document.getElementById('videoInfo');
+
+            // 썸네일
+            document.getElementById('thumbnail').src = data.thumbnail;
+
+            // 제목
+            document.getElementById('videoTitle').textContent = data.title;
+
+            // 메타 정보
+            document.getElementById('videoAuthor').textContent = `👤 ${data.author}`;
+            document.getElementById('videoLength').textContent = `⏱️ ${formatDuration(data.lengthSeconds)}`;
+            document.getElementById('videoViews').textContent = `👁️ ${formatNumber(data.viewCount)} views`;
+
+            // 포맷 리스트
+            const formatsList = document.getElementById('formatsList');
+            formatsList.innerHTML = '';
+
+            data.formats.forEach(format => {
+                const isRecommended = data.recommendedFormat && format.itag === data.recommendedFormat.itag;
+
+                const formatItem = document.createElement('div');
+                formatItem.className = `format-item ${isRecommended ? 'recommended' : ''}`;
+
+                let badges = '';
+                if (isRecommended) {
+                    badges += '<span class="badge recommended">추천</span>';
+                }
+                if (format.hasVideo) {
+                    badges += '<span class="badge video">영상</span>';
+                }
+                if (format.hasAudio) {
+                    badges += '<span class="badge audio">음성</span>';
+                }
+
+                formatItem.innerHTML = `
+                    <div class="format-info">
+                        <div class="format-quality">
+                            ${format.quality} ${badges}
+                        </div>
+                        <div class="format-details">
+                            ${format.container} • ${format.fileSize}
+                        </div>
+                    </div>
+                    <a href="${format.url}" class="download-btn" download="${sanitizeFilename(data.title)}.${format.container}">
+                        다운로드
+                    </a>
+                `;
+
+                formatsList.appendChild(formatItem);
+            });
+
+            videoInfo.classList.add('show');
+        }
+
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+        }
+
+        function formatDuration(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+
+            if (hours > 0) {
+                return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            return `${minutes}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function formatNumber(num) {
+            return parseInt(num).toLocaleString();
+        }
+
+        function sanitizeFilename(filename) {
+            return filename.replace(/[^a-z0-9가-힣]/gi, '_').substring(0, 100);
+        }
+    </script>
+</body>
+</html>
