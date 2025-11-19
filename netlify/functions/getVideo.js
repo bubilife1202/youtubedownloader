@@ -1,4 +1,6 @@
-const youtubedl = require('youtube-dl-exec');
+const YTDlpWrap = require('yt-dlp-wrap').default;
+const path = require('path');
+const fs = require('fs');
 
 // YouTube Shorts URL을 일반 URL로 변환
 function normalizeYouTubeUrl(url) {
@@ -12,6 +14,33 @@ function normalizeYouTubeUrl(url) {
   } catch (error) {
     return url;
   }
+}
+
+// yt-dlp 바이너리 경로 (Netlify Functions는 /tmp에 쓰기 가능)
+const binaryPath = '/tmp/yt-dlp';
+
+// yt-dlp 인스턴스 (싱글톤)
+let ytDlpWrap = null;
+
+async function getYtDlp() {
+  if (ytDlpWrap) {
+    return ytDlpWrap;
+  }
+
+  // /tmp 디렉토리에 yt-dlp 바이너리가 없으면 다운로드
+  if (!fs.existsSync(binaryPath)) {
+    console.log('Downloading yt-dlp binary...');
+    ytDlpWrap = new YTDlpWrap();
+    await YTDlpWrap.downloadFromGithub(binaryPath);
+    // 실행 권한 추가
+    fs.chmodSync(binaryPath, 0o755);
+    console.log('yt-dlp binary downloaded successfully');
+  } else {
+    console.log('Using existing yt-dlp binary');
+  }
+
+  ytDlpWrap = new YTDlpWrap(binaryPath);
+  return ytDlpWrap;
 }
 
 exports.handler = async (event, context) => {
@@ -62,21 +91,21 @@ exports.handler = async (event, context) => {
 
     console.log('Fetching video info for:', videoUrl);
 
+    // yt-dlp 인스턴스 가져오기
+    const ytDlp = await getYtDlp();
+
     // yt-dlp를 사용하여 비디오 정보 가져오기
-    // -J: JSON 형식으로 출력
-    // --no-warnings: 경고 메시지 숨기기
-    // --no-call-home: 업데이트 체크 안함
-    // --no-check-certificate: SSL 인증서 체크 안함 (일부 환경에서 필요)
-    const info = await youtubedl(videoUrl, {
-      dumpSingleJson: true,
-      noCheckCertificates: true,
-      noWarnings: true,
-      preferFreeFormats: true,
-      addHeader: [
-        'referer:youtube.com',
-        'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-      ]
-    });
+    const infoJson = await ytDlp.execPromise([
+      videoUrl,
+      '--dump-json',
+      '--no-warnings',
+      '--no-check-certificate',
+      '--prefer-free-formats',
+      '--add-header', 'referer:youtube.com',
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    ]);
+
+    const info = JSON.parse(infoJson);
 
     console.log('Video info fetched successfully');
     console.log('Video title:', info.title);

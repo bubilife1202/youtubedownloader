@@ -371,12 +371,18 @@
     </div>
 
     <script>
-        // AdSense 광고 초기화
-        (adsbygoogle = window.adsbygoogle || []).push({});
-        (adsbygoogle = window.adsbygoogle || []).push({});
-    </script>
+        // AdSense 광고 초기화 (페이지 로드 후)
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                try {
+                    (adsbygoogle = window.adsbygoogle || []).push({});
+                    (adsbygoogle = window.adsbygoogle || []).push({});
+                } catch (e) {
+                    console.error('AdSense error:', e);
+                }
+            }, 1000);
+        });
 
-    <script>
         // Enter 키로 검색
         document.getElementById('videoUrl').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {

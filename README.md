@@ -6,7 +6,7 @@
 
 - **Frontend**: HTML, CSS, JavaScript
 - **Backend**: Netlify Functions (Node.js)
-- **라이브러리**: youtube-dl-exec (yt-dlp 기반)
+- **라이브러리**: yt-dlp-wrap (yt-dlp 바이너리 자동 관리)
 
 ## 주요 기능
 
@@ -50,9 +50,10 @@ npm run dev
 ```
 
 **참고:**
-- 이 프로젝트는 `youtube-dl-exec` (yt-dlp)를 사용하여 YouTube 봇 차단을 자동으로 우회합니다
+- 이 프로젝트는 `yt-dlp-wrap`을 사용하여 yt-dlp 바이너리를 자동으로 다운로드하고 관리합니다
+- 첫 실행 시 yt-dlp 바이너리를 다운로드하므로 약간의 시간이 소요될 수 있습니다
 - 별도의 쿠키나 인증 설정이 필요 없습니다
-- yt-dlp는 지속적으로 업데이트되어 YouTube 변경사항에 대응합니다
+- yt-dlp는 YouTube 봇 차단을 자동으로 우회하고 지속적으로 업데이트됩니다
 
 ## 프로젝트 구조
 
