@@ -6,7 +6,7 @@
 
 - **Frontend**: HTML, CSS, JavaScript
 - **Backend**: Netlify Functions (Node.js)
-- **라이브러리**: yt-dlp-wrap (yt-dlp 바이너리 자동 관리)
+- **라이브러리**: youtubei.js (YouTube InnerTube API)
 
 ## 주요 기능
 
@@ -50,10 +50,10 @@ npm run dev
 ```
 
 **참고:**
-- 이 프로젝트는 `yt-dlp-wrap`을 사용하여 yt-dlp 바이너리를 자동으로 다운로드하고 관리합니다
-- 첫 실행 시 yt-dlp 바이너리를 다운로드하므로 약간의 시간이 소요될 수 있습니다
+- 이 프로젝트는 `youtubei.js`를 사용하여 YouTube의 공식 InnerTube API에 직접 접근합니다
+- 외부 바이너리나 의존성 없이 순수 JavaScript로 작동합니다
 - 별도의 쿠키나 인증 설정이 필요 없습니다
-- yt-dlp는 YouTube 봇 차단을 자동으로 우회하고 지속적으로 업데이트됩니다
+- YouTube의 내부 API를 사용하므로 안정적이고 빠릅니다
 
 ## 프로젝트 구조
 

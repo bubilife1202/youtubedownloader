@@ -1,6 +1,23 @@
-const YTDlpWrap = require('yt-dlp-wrap').default;
-const path = require('path');
-const fs = require('fs');
+const { Innertube } = require('youtubei.js');
+
+// YouTube 클라이언트 인스턴스 (싱글톤)
+let youtube = null;
+
+async function getYouTubeClient() {
+  if (youtube) {
+    return youtube;
+  }
+
+  console.log('Initializing YouTube client...');
+  youtube = await Innertube.create({
+    lang: 'en',
+    location: 'US',
+    retrieve_player: true
+  });
+  console.log('YouTube client initialized');
+
+  return youtube;
+}
 
 // YouTube Shorts URL을 일반 URL로 변환
 function normalizeYouTubeUrl(url) {
@@ -8,39 +25,27 @@ function normalizeYouTubeUrl(url) {
     // Shorts URL 패턴: /shorts/VIDEO_ID
     const shortsMatch = url.match(/\/shorts\/([a-zA-Z0-9_-]+)/);
     if (shortsMatch) {
-      return `https://www.youtube.com/watch?v=${shortsMatch[1]}`;
+      return shortsMatch[1];
     }
+
+    // 일반 URL에서 비디오 ID 추출
+    const urlObj = new URL(url);
+
+    // youtu.be/VIDEO_ID 형식
+    if (urlObj.hostname === 'youtu.be') {
+      return urlObj.pathname.substring(1).split('?')[0];
+    }
+
+    // youtube.com/watch?v=VIDEO_ID 형식
+    const videoId = urlObj.searchParams.get('v');
+    if (videoId) {
+      return videoId;
+    }
+
     return url;
   } catch (error) {
     return url;
   }
-}
-
-// yt-dlp 바이너리 경로 (Netlify Functions는 /tmp에 쓰기 가능)
-const binaryPath = '/tmp/yt-dlp';
-
-// yt-dlp 인스턴스 (싱글톤)
-let ytDlpWrap = null;
-
-async function getYtDlp() {
-  if (ytDlpWrap) {
-    return ytDlpWrap;
-  }
-
-  // /tmp 디렉토리에 yt-dlp 바이너리가 없으면 다운로드
-  if (!fs.existsSync(binaryPath)) {
-    console.log('Downloading yt-dlp binary...');
-    ytDlpWrap = new YTDlpWrap();
-    await YTDlpWrap.downloadFromGithub(binaryPath);
-    // 실행 권한 추가
-    fs.chmodSync(binaryPath, 0o755);
-    console.log('yt-dlp binary downloaded successfully');
-  } else {
-    console.log('Using existing yt-dlp binary');
-  }
-
-  ytDlpWrap = new YTDlpWrap(binaryPath);
-  return ytDlpWrap;
 }
 
 exports.handler = async (event, context) => {
@@ -69,91 +74,65 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'URL 파라미터가 필요합니다.' })
-      };
-    }
-
-    // YouTube Shorts URL을 일반 URL로 변환
-    videoUrl = normalizeYouTubeUrl(videoUrl);
-    console.log('Normalized URL:', videoUrl);
-
-    // 유튜브 URL 유효성 검사
-    if (!ytdl.validateURL(videoUrl)) {
-      return {
-        statusCode: 400,
-        headers,
         body: JSON.stringify({
-          error: '유효하지 않은 유튜브 URL입니다.',
-          providedUrl: videoUrl
+          success: false,
+          error: 'URL 파라미터가 필요합니다.'
         })
       };
     }
 
-    console.log('Fetching video info for:', videoUrl);
+    // 비디오 ID 추출
+    const videoId = normalizeYouTubeUrl(videoUrl);
+    console.log('Video ID:', videoId);
 
-    // yt-dlp 인스턴스 가져오기
-    const ytDlp = await getYtDlp();
+    // YouTube 클라이언트 가져오기
+    const yt = await getYouTubeClient();
 
-    // yt-dlp를 사용하여 비디오 정보 가져오기
-    const infoJson = await ytDlp.execPromise([
-      videoUrl,
-      '--dump-json',
-      '--no-warnings',
-      '--no-check-certificate',
-      '--prefer-free-formats',
-      '--add-header', 'referer:youtube.com',
-      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-    ]);
-
-    const info = JSON.parse(infoJson);
+    // 비디오 정보 가져오기
+    console.log('Fetching video info...');
+    const info = await yt.getInfo(videoId);
 
     console.log('Video info fetched successfully');
-    console.log('Video title:', info.title);
-    console.log('Total formats available:', info.formats?.length || 0);
+    console.log('Video title:', info.basic_info.title);
 
     // 포맷 정보 추출
-    const formats = (info.formats || [])
-      .filter(format => {
-        // URL이 있고, 비디오나 오디오가 있는 포맷만
-        return format.url && (format.vcodec !== 'none' || format.acodec !== 'none');
-      })
-      .map(format => {
-        const hasVideo = format.vcodec && format.vcodec !== 'none';
-        const hasAudio = format.acodec && format.acodec !== 'none';
+    const formats = [];
 
-        return {
-          itag: format.format_id,
-          quality: format.format_note || format.quality || format.height ? `${format.height}p` : 'audio',
-          container: format.ext,
+    // adaptive_formats와 streaming_data에서 포맷 추출
+    if (info.streaming_data) {
+      const allFormats = [
+        ...(info.streaming_data.formats || []),
+        ...(info.streaming_data.adaptive_formats || [])
+      ];
+
+      for (const format of allFormats) {
+        if (!format.url) continue;
+
+        const hasVideo = format.has_video || format.mime_type?.includes('video');
+        const hasAudio = format.has_audio || format.mime_type?.includes('audio');
+
+        formats.push({
+          itag: format.itag,
+          quality: format.quality_label || format.quality || (hasAudio && !hasVideo ? 'audio' : 'unknown'),
+          container: format.mime_type?.split(';')[0]?.split('/')[1] || 'unknown',
           hasVideo: hasVideo,
           hasAudio: hasAudio,
           url: format.url,
-          mimeType: format.format || '',
-          bitrate: format.tbr || format.abr || format.vbr || 0,
-          fileSize: format.filesize
-            ? (format.filesize / (1024 * 1024)).toFixed(2) + ' MB'
-            : (format.filesize_approx
-                ? (format.filesize_approx / (1024 * 1024)).toFixed(2) + ' MB (approx)'
-                : 'Unknown'),
+          mimeType: format.mime_type || '',
+          bitrate: format.bitrate || 0,
+          fileSize: format.content_length
+            ? (parseInt(format.content_length) / (1024 * 1024)).toFixed(2) + ' MB'
+            : 'Unknown',
           width: format.width,
           height: format.height,
           fps: format.fps
-        };
-      })
-      .sort((a, b) => {
-        // 비디오+오디오가 함께 있는 것을 우선
-        if (a.hasVideo && a.hasAudio && !(b.hasVideo && b.hasAudio)) return -1;
-        if (!(a.hasVideo && a.hasAudio) && b.hasVideo && b.hasAudio) return 1;
-        // 화질 순
-        if (a.height && b.height) return b.height - a.height;
-        // 비트레이트 순
-        return (b.bitrate || 0) - (a.bitrate || 0);
-      });
+        });
+      }
+    }
 
-    console.log('Filtered formats count:', formats.length);
+    console.log('Total formats found:', formats.length);
 
     if (formats.length === 0) {
-      console.warn('No downloadable formats found');
       return {
         statusCode: 404,
         headers,
@@ -165,23 +144,32 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // 포맷 정렬 (비디오+오디오 우선, 그 다음 화질 순)
+    formats.sort((a, b) => {
+      if (a.hasVideo && a.hasAudio && !(b.hasVideo && b.hasAudio)) return -1;
+      if (!(a.hasVideo && a.hasAudio) && b.hasVideo && b.hasAudio) return 1;
+      if (a.height && b.height) return b.height - a.height;
+      return (b.bitrate || 0) - (a.bitrate || 0);
+    });
+
     // 추천 포맷 (비디오+오디오가 함께 있는 최고 화질)
     const recommendedFormat = formats.find(f => f.hasVideo && f.hasAudio);
-    console.log('Recommended format:', recommendedFormat ? `${recommendedFormat.quality} (${recommendedFormat.container})` : 'none');
+    console.log('Recommended format:', recommendedFormat ? `${recommendedFormat.quality}` : 'none');
 
     // 썸네일 가져오기
-    const thumbnail = info.thumbnail || (info.thumbnails && info.thumbnails.length > 0 ? info.thumbnails[info.thumbnails.length - 1].url : '');
+    const thumbnails = info.basic_info.thumbnail;
+    const thumbnail = thumbnails?.[thumbnails.length - 1]?.url || '';
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        title: info.title || 'Unknown',
+        title: info.basic_info.title || 'Unknown',
         thumbnail: thumbnail,
-        author: info.uploader || info.channel || 'Unknown',
-        lengthSeconds: info.duration || 0,
-        viewCount: info.view_count || 0,
+        author: info.basic_info.author || 'Unknown',
+        lengthSeconds: info.basic_info.duration || 0,
+        viewCount: info.basic_info.view_count || 0,
         recommendedFormat,
         formats
       })
@@ -191,15 +179,14 @@ exports.handler = async (event, context) => {
     console.error('Error details:', {
       message: error.message,
       stack: error.stack,
-      name: error.name,
-      stderr: error.stderr
+      name: error.name
     });
 
     // 더 구체적인 에러 메시지 제공
     let errorMessage = '비디오 정보를 가져오는 중 오류가 발생했습니다.';
     let statusCode = 500;
 
-    const errMsg = (error.message + ' ' + (error.stderr || '')).toLowerCase();
+    const errMsg = error.message.toLowerCase();
 
     if (errMsg.includes('video unavailable') || errMsg.includes('not found') || errMsg.includes('this video is not available')) {
       errorMessage = '이 비디오는 현재 사용할 수 없습니다. (비공개 또는 삭제됨)';
@@ -213,19 +200,13 @@ exports.handler = async (event, context) => {
     } else if (errMsg.includes('copyright') || errMsg.includes('blocked')) {
       errorMessage = '저작권 문제로 이 비디오를 처리할 수 없습니다.';
       statusCode = 403;
-    } else if (errMsg.includes('sign in') || errMsg.includes('login') || errMsg.includes('confirm your age') || errMsg.includes('members-only')) {
-      errorMessage = '이 비디오는 접근 제한이 있습니다. (로그인 필요 또는 멤버십 전용)';
+    } else if (errMsg.includes('members') || errMsg.includes('membership')) {
+      errorMessage = '멤버십 전용 비디오는 다운로드할 수 없습니다.';
       statusCode = 403;
-    } else if (errMsg.includes('429') || errMsg.includes('too many requests')) {
-      errorMessage = '너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해주세요.';
-      statusCode = 429;
-    } else if (errMsg.includes('403') || errMsg.includes('forbidden')) {
-      errorMessage = 'YouTube에서 일시적으로 접근을 차단했습니다. 잠시 후 다시 시도해주세요.';
-      statusCode = 403;
-    } else if (errMsg.includes('premieres in') || errMsg.includes('premiere')) {
+    } else if (errMsg.includes('premieres') || errMsg.includes('premiere')) {
       errorMessage = '이 비디오는 아직 공개되지 않았습니다. (프리미어 예정)';
       statusCode = 400;
-    } else if (errMsg.includes('live event') || errMsg.includes('live stream')) {
+    } else if (errMsg.includes('live')) {
       errorMessage = '라이브 스트리밍 비디오는 지원하지 않습니다.';
       statusCode = 400;
     }

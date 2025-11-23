@@ -15,7 +15,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "yt-dlp-wrap": "^2.3.19"
+    "youtubei.js": "^10.5.0"
   },
   "devDependencies": {
     "netlify-cli": "^17.0.0"
