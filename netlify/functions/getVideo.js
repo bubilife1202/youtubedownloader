@@ -95,39 +95,120 @@ exports.handler = async (event, context) => {
     console.log('Video info fetched successfully');
     console.log('Video title:', info.basic_info.title);
 
-    // 포맷 정보 추출
+    // 포맷 정보 추출 - chooseFormat 사용
     const formats = [];
 
-    // adaptive_formats와 streaming_data에서 포맷 추출
-    if (info.streaming_data) {
-      const allFormats = [
-        ...(info.streaming_data.formats || []),
-        ...(info.streaming_data.adaptive_formats || [])
+    try {
+      // 모든 사용 가능한 포맷 가져오기
+      // youtubei.js는 format 객체를 반환하며, 각각 decipher() 메소드를 가짐
+
+      // 다양한 화질의 포맷들 시도
+      const qualityOptions = [
+        { type: 'video+audio', quality: 'best' },
+        { type: 'video+audio', quality: 'high' },
+        { type: 'video+audio', quality: 'medium' },
+        { type: 'video', quality: 'best' },
+        { type: 'audio', quality: 'best' }
       ];
 
-      for (const format of allFormats) {
-        if (!format.url) continue;
+      const seenItags = new Set();
 
-        const hasVideo = format.has_video || format.mime_type?.includes('video');
-        const hasAudio = format.has_audio || format.mime_type?.includes('audio');
+      for (const options of qualityOptions) {
+        try {
+          const format = info.chooseFormat(options);
 
-        formats.push({
-          itag: format.itag,
-          quality: format.quality_label || format.quality || (hasAudio && !hasVideo ? 'audio' : 'unknown'),
-          container: format.mime_type?.split(';')[0]?.split('/')[1] || 'unknown',
-          hasVideo: hasVideo,
-          hasAudio: hasAudio,
-          url: format.url,
-          mimeType: format.mime_type || '',
-          bitrate: format.bitrate || 0,
-          fileSize: format.content_length
-            ? (parseInt(format.content_length) / (1024 * 1024)).toFixed(2) + ' MB'
-            : 'Unknown',
-          width: format.width,
-          height: format.height,
-          fps: format.fps
-        });
+          if (!format || seenItags.has(format.itag)) {
+            continue;
+          }
+
+          seenItags.add(format.itag);
+
+          // URL 가져오기
+          let downloadUrl;
+          if (typeof format.decipher === 'function') {
+            try {
+              // decipher는 player를 인자로 받을 수 있음
+              downloadUrl = await format.decipher(info.player);
+            } catch (decipherErr) {
+              console.log('Decipher failed for itag:', format.itag, decipherErr.message);
+              downloadUrl = format.url;
+            }
+          } else {
+            downloadUrl = format.url;
+          }
+
+          if (!downloadUrl) {
+            console.log('No URL for format:', format.itag);
+            continue;
+          }
+
+          const hasVideo = format.has_video || false;
+          const hasAudio = format.has_audio || false;
+
+          formats.push({
+            itag: format.itag,
+            quality: format.quality_label || (hasAudio && !hasVideo ? 'audio' : format.quality || 'unknown'),
+            container: format.mime_type?.split(';')[0]?.split('/')[1] || 'unknown',
+            hasVideo: hasVideo,
+            hasAudio: hasAudio,
+            url: downloadUrl,
+            mimeType: format.mime_type || '',
+            bitrate: format.bitrate || 0,
+            fileSize: format.content_length
+              ? (parseInt(format.content_length) / (1024 * 1024)).toFixed(2) + ' MB'
+              : 'Unknown',
+            width: format.width,
+            height: format.height,
+            fps: format.fps
+          });
+        } catch (err) {
+          console.log('Failed to get format with options:', options, err.message);
+        }
       }
+
+      // 추가: streaming_data에서 직접 가져오기 (폴백)
+      if (formats.length === 0 && info.streaming_data) {
+        console.log('Trying direct streaming_data access...');
+        const allFormats = [
+          ...(info.streaming_data.formats || []),
+          ...(info.streaming_data.adaptive_formats || [])
+        ];
+
+        for (const format of allFormats) {
+          if (seenItags.has(format.itag)) continue;
+          seenItags.add(format.itag);
+
+          let downloadUrl = format.url;
+          if (!downloadUrl && format.signatureCipher) {
+            // 서명이 필요한 경우 건너뛰기 (복잡함)
+            continue;
+          }
+
+          if (!downloadUrl) continue;
+
+          const hasVideo = format.has_video || format.mimeType?.includes('video') || false;
+          const hasAudio = format.has_audio || format.mimeType?.includes('audio') || false;
+
+          formats.push({
+            itag: format.itag,
+            quality: format.qualityLabel || format.quality || (hasAudio && !hasVideo ? 'audio' : 'unknown'),
+            container: format.mimeType?.split(';')[0]?.split('/')[1] || 'unknown',
+            hasVideo: hasVideo,
+            hasAudio: hasAudio,
+            url: downloadUrl,
+            mimeType: format.mimeType || '',
+            bitrate: format.bitrate || 0,
+            fileSize: format.contentLength
+              ? (parseInt(format.contentLength) / (1024 * 1024)).toFixed(2) + ' MB'
+              : 'Unknown',
+            width: format.width,
+            height: format.height,
+            fps: format.fps
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error extracting formats:', err);
     }
 
     console.log('Total formats found:', formats.length);
